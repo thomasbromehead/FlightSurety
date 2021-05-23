@@ -1,4 +1,4 @@
-pragma solidity ^0.4.25;
+pragma solidity 0.6.0;
 
 import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
 
@@ -9,8 +9,20 @@ contract FlightSuretyData {
     /*                                       DATA VARIABLES                                     */
     /********************************************************************************************/
 
-    address private contractOwner;                                      // Account used to deploy contract
+    struct Airline {
+        bool isRegistered;
+        address airlineAddress;
+    }
+
+
+    address public contractOwner;                                      // Account used to deploy contract
     bool private operational = true;                                    // Blocks all state changes throughout the contract if false
+    mapping(address => bool) public allowedContracts;
+    mapping(address => Airline) public registeredAirlines;
+    mapping(address => uint) public fundPool;
+    // Airline[] private registeredAirlinesArray;
+
+    event NotOwner(address);
 
     /********************************************************************************************/
     /*                                       EVENT DEFINITIONS                                  */
@@ -23,10 +35,17 @@ contract FlightSuretyData {
     */
     constructor
                                 (
+                                    address firstAirlineAddress
                                 ) 
-                                public 
+                                public
+                                payable 
     {
         contractOwner = msg.sender;
+        Airline memory firstAirline = Airline({isRegistered: true, airlineAddress: firstAirlineAddress});
+        registeredAirlines[firstAirlineAddress] = firstAirline;
+        if(msg.value > 0 ether){
+            fundPool[firstAirlineAddress] = msg.value;
+        }
     }
 
     /********************************************************************************************/
@@ -41,7 +60,7 @@ contract FlightSuretyData {
     *      This is used on all state changing functions to pause the contract in 
     *      the event there is an issue that needs to be fixed
     */
-    modifier requireIsOperational() 
+    modifier requireIsOperational()
     {
         require(operational, "Contract is currently not operational");
         _;  // All modifiers require an "_" which indicates where the function body will be added
@@ -51,10 +70,35 @@ contract FlightSuretyData {
     * @dev Modifier that requires the "ContractOwner" account to be the function caller
     */
     modifier requireContractOwner()
-    {
+    {   
         require(msg.sender == contractOwner, "Caller is not contract owner");
         _;
     }
+
+    /**
+    * @dev Modifier that requires the calling account to be an airline
+    */
+    modifier isAirline(address airline){
+        require(registeredAirlines[airline].isRegistered, "This airline has not been registered");
+        _;
+    }
+
+    /**
+    * @dev Modifier that requires the calling account to be an authorized contract
+    */
+    modifier isAuthorizedContract() {
+        require(isContractAuthorized(msg.sender), "The calling contract has not been authorized to call in");
+        _;
+    }
+
+    /**
+    * @dev Modifier that requires the calling account to be an airline
+    */
+    modifier isFunded(address airline) {
+        require(fundPool[airline] >= 10 ether, "Airline's balance is less than 10 ether");
+        _;
+    }
+
 
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
@@ -68,6 +112,7 @@ contract FlightSuretyData {
     function isOperational() 
                             public 
                             view 
+                            // isAuthorizedContract()
                             returns(bool) 
     {
         return operational;
@@ -89,9 +134,48 @@ contract FlightSuretyData {
         operational = mode;
     }
 
+    /**
+    * @dev Add contracts that can call in
+    *      
+    *
+    */   
+    function registerContract
+                            (   
+                                address allowedContract
+                            )
+                            requireIsOperational()
+                            requireContractOwner()
+                            external
+                            payable
+                            returns(bool)
+    {
+        allowedContracts[allowedContract] = true;
+        assert(allowedContracts[allowedContract] == true);
+        return true;
+    }
+
+    /**
+    * @dev Add contracts that can call in
+    *      
+    *
+    */   
+    function isContractAuthorized
+                            (   
+                                address contractAddress
+                            )
+                            requireIsOperational()
+                            public
+                            view
+                            returns(bool)
+    {
+        return allowedContracts[contractAddress];
+    }
+
     /********************************************************************************************/
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
+
+
 
    /**
     * @dev Add an airline to the registration queue
@@ -100,12 +184,33 @@ contract FlightSuretyData {
     */   
     function registerAirline
                             (   
+                                address airline
                             )
+                            isAuthorizedContract()
+                            isAirline(airline)
+                            isFunded(airline)
                             external
-                            pure
+                            payable
     {
+        Airline memory airlineStruct = Airline({isRegistered: true, airlineAddress: airline});
+        registeredAirlines[airline] = airlineStruct;
     }
 
+    /**
+    * @dev Buy insurance for a flight
+    *
+    */   
+    function fundAirline
+                        (
+                         address airline   
+                        )
+                        isAuthorizedContract()
+                        isAirline(airline)
+                        external 
+                        payable
+    {
+        fundPool[airline] = msg.value;
+    }
 
    /**
     * @dev Buy insurance for a flight
@@ -114,10 +219,12 @@ contract FlightSuretyData {
     function buy
                             (                             
                             )
+                            isAuthorizedContract()
                             external
                             payable
+                            
     {
-
+        
     }
 
     /**
@@ -126,8 +233,9 @@ contract FlightSuretyData {
     function creditInsurees
                                 (
                                 )
+                                isAuthorizedContract()
                                 external
-                                pure
+                                view
     {
     }
     
@@ -139,8 +247,9 @@ contract FlightSuretyData {
     function pay
                             (
                             )
+                            isAuthorizedContract()
                             external
-                            pure
+                            view
     {
     }
 
@@ -152,6 +261,7 @@ contract FlightSuretyData {
     function fund
                             (   
                             )
+                            isAuthorizedContract()
                             public
                             payable
     {
@@ -163,7 +273,7 @@ contract FlightSuretyData {
                             string memory flight,
                             uint256 timestamp
                         )
-                        pure
+                        pure    
                         internal
                         returns(bytes32) 
     {
@@ -174,13 +284,11 @@ contract FlightSuretyData {
     * @dev Fallback function for funding smart contract.
     *
     */
-    function() 
+    fallback() 
                             external 
                             payable 
     {
         fund();
     }
-
-
 }
 
