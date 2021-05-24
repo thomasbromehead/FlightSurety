@@ -18,10 +18,13 @@ var Config = async function(accounts) {
         "0xc257274276a4e539741ca11b590b9447b26a8051",
         "0x2f2899d6d35b1a48a4fbdc93a37a72f264a9fca7"
     ];
-
     let owner = accounts[0];
-
     let firstAirline = accounts[1];
+    let secondAirline = accounts[2];
+    let thirdAirline = accounts[3];
+    let fourthAirline = accounts[4];
+    let fifthAirline = accounts[5];
+    let sixthAirline = accounts[6];
 
     let flightSuretyData = await FlightSuretyData.new(firstAirline);
     let flightSuretyApp = await FlightSuretyApp.new(flightSuretyData.address);
@@ -29,6 +32,11 @@ var Config = async function(accounts) {
     return {
         owner: owner,
         firstAirline: firstAirline,
+        secondAirline: secondAirline,
+        thirdAirline: thirdAirline,
+        fourthAirline: fourthAirline,
+        fifthAirline: fifthAirline,
+        sixthAirline: sixthAirline,
         weiMultiple: (new BigNumber(10)).pow(18),
         testAddresses: testAddresses,
         flightSuretyData: flightSuretyData,

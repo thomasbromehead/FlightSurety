@@ -8,7 +8,7 @@ module.exports = function(deployer) {
     deployer.deploy(FlightSuretyData, firstAirline)
     .then(async (dataContract) => {
         return deployer.deploy(FlightSuretyApp, dataContract.address)
-                .then(async (appContract) => {
+                .then(async () => {
                     let config = {
                         localhost: {
                             url: 'http://localhost:8545',

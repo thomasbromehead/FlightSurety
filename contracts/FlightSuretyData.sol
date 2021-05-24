@@ -1,4 +1,5 @@
 pragma solidity 0.6.0;
+pragma experimental ABIEncoderV2;
 
 import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
 
@@ -12,17 +13,26 @@ contract FlightSuretyData {
     struct Airline {
         bool isRegistered;
         address airlineAddress;
+        uint airlineIndex;
+        uint numVotes;
     }
 
+    // struct Vote {
+    //     address[] voters;
+    //     uint numVotes;
+    // }
 
     address public contractOwner;                                      // Account used to deploy contract
     bool private operational = true;                                    // Blocks all state changes throughout the contract if false
     mapping(address => bool) public allowedContracts;
-    mapping(address => Airline) public registeredAirlines;
+    mapping(address => Airline) public airlines;
     mapping(address => uint) public fundPool;
-    // Airline[] private registeredAirlinesArray;
+    mapping(address => address[]) public voters;
+    Airline[] public airlinesArray;
 
     event NotOwner(address);
+    event ContractAuthorized(address);
+    event FundsReceived(uint);
 
     /********************************************************************************************/
     /*                                       EVENT DEFINITIONS                                  */
@@ -41,8 +51,7 @@ contract FlightSuretyData {
                                 payable 
     {
         contractOwner = msg.sender;
-        Airline memory firstAirline = Airline({isRegistered: true, airlineAddress: firstAirlineAddress});
-        registeredAirlines[firstAirlineAddress] = firstAirline;
+        registerAirline(firstAirlineAddress, true, msg.sender);
         if(msg.value > 0 ether){
             fundPool[firstAirlineAddress] = msg.value;
         }
@@ -77,11 +86,29 @@ contract FlightSuretyData {
 
     /**
     * @dev Modifier that requires the calling account to be an airline
+    * Allow contract owner as an approved airline, needed for first registration call in constructor
     */
-    modifier isAirline(address airline){
-        require(registeredAirlines[airline].isRegistered, "This airline has not been registered");
+    modifier isApprovedAirline(address airline){
+        require(airlines[airline].isRegistered || contractOwner == msg.sender , "This airline has not been registered");
         _;
     }
+
+    /**
+    * @dev Modifier that checks whether an airline has already votes for another
+    */
+    modifier hasNotVoted(address candidateAirline) {
+        assert(msg.sender != candidateAirline);
+        bool alreadyVoted;
+        for(uint i = 0; i < voters[candidateAirline].length; i++){
+            if(voters[candidateAirline][i] == msg.sender){
+                alreadyVoted = true;
+            }
+        }
+        require(!alreadyVoted, "You have already voted for this airline");
+        _;
+    }
+
+
 
     /**
     * @dev Modifier that requires the calling account to be an authorized contract
@@ -92,13 +119,8 @@ contract FlightSuretyData {
     }
 
     /**
-    * @dev Modifier that requires the calling account to be an airline
+    * @dev Check that an airline isn't yet registered (for votes)
     */
-    modifier isFunded(address airline) {
-        require(fundPool[airline] >= 10 ether, "Airline's balance is less than 10 ether");
-        _;
-    }
-
 
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
@@ -116,6 +138,28 @@ contract FlightSuretyData {
                             returns(bool) 
     {
         return operational;
+    }
+
+    /**
+    * @dev Returns number of airlines registered
+    *
+    */      
+    function numberOfRegisteredAirlines() 
+                            external
+                            view 
+                            // isAuthorizedContract()
+                            returns(uint) 
+    {
+        // You have to initialize it straight away
+        Airline[] memory registeredAirlines = new Airline[](airlinesArray.length);
+        uint counter = 0;
+        for(uint i = 0; i < airlinesArray.length; i++){
+            if(airlinesArray[i].isRegistered){
+                registeredAirlines[counter] = airlinesArray[i];
+                counter++;
+            }
+        }
+        return registeredAirlines.length;
     }
 
 
@@ -151,6 +195,7 @@ contract FlightSuretyData {
     {
         allowedContracts[allowedContract] = true;
         assert(allowedContracts[allowedContract] == true);
+        emit ContractAuthorized(allowedContract);
         return true;
     }
 
@@ -168,14 +213,42 @@ contract FlightSuretyData {
                             view
                             returns(bool)
     {
+        // ALLOW CONTRACT TO CALL ITSELF (FOR REGISTERING THE FIRST AIRLINE)
+        if(msg.sender == contractOwner){ return true; }
         return allowedContracts[contractAddress];
     }
 
     /********************************************************************************************/
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
-
-
+   
+   /**
+    * @dev Add an airline to the registration queue
+    *      Can only be called from FlightSuretyApp contract
+    *
+    */   
+    function fetchAirlineBuffer
+                            (
+                                address airlineArg
+                            )
+                            external
+                            view
+        returns
+        (
+            bool isRegistered,
+            address airlineAddress,
+            uint index,
+            uint numberOfVotes
+        )
+    {
+     Airline storage airline = airlines[airlineArg];
+     return(
+        airline.isRegistered,
+        airline.airlineAddress,
+        airline.airlineIndex,
+        airline.numVotes
+     );
+    }
 
    /**
     * @dev Add an airline to the registration queue
@@ -184,32 +257,87 @@ contract FlightSuretyData {
     */   
     function registerAirline
                             (   
-                                address airline
+                                address airline,
+                                bool registered,
+                                address caller
                             )
                             isAuthorizedContract()
-                            isAirline(airline)
-                            isFunded(airline)
-                            external
+                            isApprovedAirline(caller)
+                            // isFunded(airline) CALLED IN APP CONTRACT
+                            public
                             payable
+                            returns(bool)
     {
-        Airline memory airlineStruct = Airline({isRegistered: true, airlineAddress: airline});
-        registeredAirlines[airline] = airlineStruct;
+        uint index = airlinesArray.length.add(1);
+        Airline memory airlineStruct = Airline({
+            isRegistered: registered,
+            airlineAddress: airline,
+            airlineIndex: index,
+            numVotes: 0
+        });
+        airlines[airline] = airlineStruct;
+        airlinesArray.push(airlineStruct);
+        airlinesArray.length.add(1);
+        return true;
     }
 
     /**
-    * @dev Buy insurance for a flight
+    * @dev Fund the airline
     *
     */   
     function fundAirline
                         (
-                         address airline   
+                         address airline,
+                         uint value
                         )
                         isAuthorizedContract()
-                        isAirline(airline)
+                        // isApprovedAirline(msg.sender)
+                        isApprovedAirline(airline)
                         external 
                         payable
     {
-        fundPool[airline] = msg.value;
+        fundPool[airline] = value;
+    }
+
+    /**
+    * @dev Show the airline's balance
+    *
+    */  
+    function getAirlineBalance(address airline) external view returns(uint){
+        return fundPool[airline];
+    }
+
+    /**
+    * @dev Vote for an airline
+    *
+    */ 
+    function voteForAirline
+                            (
+                                address airline,
+                                address caller
+                            )
+                            external 
+                            isAuthorizedContract()
+                            isApprovedAirline(airline)
+                            hasNotVoted(caller)
+    {
+        airlines[airline].numVotes.add(1);
+        voters[airline].push(caller);
+    }
+
+    /**
+    * @dev Get the number of votes this airline has received
+    *
+    */ 
+    function getVotes(
+                        address airline
+                    ) 
+                    isAuthorizedContract()
+                    external 
+                    view
+                    returns(uint votes)
+    {
+        return airlines[airline].numVotes;
     }
 
    /**
@@ -258,14 +386,14 @@ contract FlightSuretyData {
     *      resulting in insurance payouts, the contract should be self-sustaining
     *
     */   
-    function fund
-                            (   
-                            )
-                            isAuthorizedContract()
-                            public
-                            payable
-    {
-    }
+    // function fund
+    //                         (   
+    //                         )
+    //                         isAuthorizedContract()
+    //                         public
+    //                         payable
+    // {
+    // }
 
     function getFlightKey
                         (
@@ -288,7 +416,16 @@ contract FlightSuretyData {
                             external 
                             payable 
     {
-        fund();
+        require(msg.data.length == 0, "This function is only meant to receive Ether");
+        uint value = uint(msg.value);
+        emit FundsReceived(value);
+    }
+
+    receive() 
+                            external 
+                            payable
+    {
+
     }
 }
 

@@ -37,6 +37,9 @@ contract FlightSuretyApp {
     mapping(bytes32 => Flight) private flights;
     FlightSuretyData private dataContract;
 
+    event VotesNeeded(address airline);
+    event FundsReceived(address, uint);
+
  
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -64,6 +67,16 @@ contract FlightSuretyApp {
     modifier requireContractOwner()
     {
         require(msg.sender == contractOwner, "Caller is not contract owner");
+        _;
+    }
+
+    /**
+    * @dev Modifier that requires the calling account to be an airline. There is a business rule here (10 ETH limit)
+    * so belongs here in my opinion.
+    */
+    modifier isFunded(address airline) {
+        uint balance = dataContract.getAirlineBalance(airline);
+        require(balance >= 10 ether, "Airline's balance is less than 10 ether");
         _;
     }
 
@@ -101,24 +114,56 @@ contract FlightSuretyApp {
         return address(dataContract);
     }
 
+    function getDataContractBalance() public view returns(uint){
+        address(dataContract).balance;
+    }
+
     /********************************************************************************************/
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
-
-  
    /**
     * @dev Add an airline to the registration queue
     *
     */   
+    function voteForAirline
+                          (
+                              address airline,
+                              address caller
+                          )
+                          requireIsOperational()
+                          isFunded(caller)
+                          external
+                          returns(bool)
+    {
+        
+    }
+   /**
+    * @dev Add an airline to the registration queue
+    *
+    */
+
     function registerAirline
-                            (   
+                            (
+                                address airline,
+                                address caller  
                             )
                             requireIsOperational()
+                            isFunded(caller)
                             external
-                            view
+                            payable
                             returns(bool success, uint256 votes)
     {
-        return (success, 0);
+        bool isSuccess;
+        // uint totalRegisteredAirlines = dataContract.numberOfRegisteredAirlines();
+        // if(totalRegisteredAirlines > 4){
+            // require multi sig
+        //     emit VotesNeeded(airline);
+        //     // numberOfVotes = dataContract.getVotes(airline);
+        //     isSuccess = dataContract.registerAirline(airline, false, caller);
+        // } else {
+            isSuccess = dataContract.registerAirline(airline, true, caller);
+        // }
+        return(isSuccess, 0);
     }
 
     function fundAirline
@@ -130,7 +175,23 @@ contract FlightSuretyApp {
                         payable
                         returns(bool)
     {
-        dataContract.fundAirline.value(msg.value)(airline);
+        (bool success, ) = address(dataContract).call.value(msg.value)("");
+        require(success, "An error happened while funding the Data Contract");
+        dataContract.fundAirline(airline, msg.value);
+        emit FundsReceived(airline, msg.value);
+        return success;
+    }
+
+    function getAirlineBalance
+                        (
+                            address airline
+                        )
+                        requireIsOperational()
+                        external
+                        view
+                        returns(uint)
+    {
+        dataContract.getAirlineBalance(airline);
     }
 
 
