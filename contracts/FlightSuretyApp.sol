@@ -17,7 +17,7 @@ contract FlightSuretyApp {
     /*                                       DATA VARIABLES                                     */
     /********************************************************************************************/
 
-    // Flight status codees
+    // Flight status codes
     uint8 private constant STATUS_CODE_UNKNOWN = 0;
     uint8 private constant STATUS_CODE_ON_TIME = 10;
     uint8 private constant STATUS_CODE_LATE_AIRLINE = 20;
@@ -25,16 +25,9 @@ contract FlightSuretyApp {
     uint8 private constant STATUS_CODE_LATE_TECHNICAL = 40;
     uint8 private constant STATUS_CODE_LATE_OTHER = 50;
 
-    address public contractOwner;          // Account used to deploy contract
+    // Account used to deploy contract
+    address public contractOwner;          
 
-    struct Flight {
-        bool isRegistered;
-        uint8 statusCode;
-        uint256 updatedTimestamp;        
-        address airline;
-    }
-
-    mapping(bytes32 => Flight) private flights;
     FlightSuretyData private dataContract;
 
     event VotesNeeded(address airline);
@@ -181,9 +174,9 @@ contract FlightSuretyApp {
         return success;
     }
 
-    function buyInsurance(Flight){
+    // function buyInsurance(Flight){
 
-    }
+    // }
 
     function getAirlineBalance
                         (
@@ -204,13 +197,16 @@ contract FlightSuretyApp {
     */  
     function registerFlight
                                 (
+                                    address airline,
+                                    string calldata flightNumber
                                 )
                                 requireIsOperational()
-                                isFunded(msg.caller)
+                                isFunded(msg.sender)
                                 external
-                                //view // Why is it a view? This changes state??
     {
-        dataContract.registerFlight(msg.sender);
+        require(msg.sender == airline, "You can't register a flight for another airline");
+        dataContract.registerFlight(msg.sender, airline, flightNumber);
+        // emit Structs.FlightRegistered(flightNumber);
     }
     
    /**

@@ -200,7 +200,7 @@ contract('Flight Surety Tests', async (accounts) => {
             assert.equal(firstAirlineInfo[3], 1);
         })
 
-        it.only('(airline) More than half of the airlines need to have voted for an airline for it to become registered', async () => {
+        it('(airline) More than half of the airlines need to have voted for an airline for it to become registered', async () => {
             let authorizeContractTx = await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: owner});
             TruffleAssert.eventEmitted(authorizeContractTx, "ContractAuthorized");
             await config.flightSuretyApp.fundAirline(config.firstAirline, {from: config.firstAirline, value: web3.utils.toWei('10', 'ether')});
@@ -243,7 +243,7 @@ contract('Flight Surety Tests', async (accounts) => {
         assert.equal(balance, web3.utils.toWei('0', 'ether'));
     })
 
-    it.only('(airline) should be impossible to vote twice for the same airline', async () => {
+    it('(airline) should be impossible to vote twice for the same airline', async () => {
         let authorizeContractTx = await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: owner});
         TruffleAssert.eventEmitted(authorizeContractTx, "ContractAuthorized");
         await config.flightSuretyApp.fundAirline(config.firstAirline, {from: config.firstAirline, value: web3.utils.toWei('10', 'ether')});
@@ -265,4 +265,16 @@ contract('Flight Surety Tests', async (accounts) => {
     describe('passengers', () => {
 
     });
+
+    it.only('(airline) Can register a flight', async () => {
+        await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: owner});
+        let fundTx = await config.flightSuretyApp.fundAirline(config.firstAirline, {from: config.firstAirline, value: web3.utils.toWei('10', 'ether')});
+        TruffleAssert.eventEmitted(fundTx, "FundsReceived");
+        // let registerFlightTx = await config.flightSuretyApp.registerFlight(config.firstAirline, "UJ234", {from: config.firstAirline});
+        // TruffleAssert.eventEmitted(registerFlightTx, "FlightRegistered");
+    })
+
+    it('(airline) An airline can only register a flight for itself', async () => {
+
+    })
 });

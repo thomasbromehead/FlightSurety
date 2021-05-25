@@ -1,45 +1,38 @@
 pragma solidity 0.6.0;
-pragma experimental ABIEncoderV2;
+import "./Structs.sol";
+// pragma experimental ABIEncoderV2;
 
 import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
 
 contract FlightSuretyData {
     using SafeMath for uint256;
+    using Structs for Structs.Flight;
+    using Structs for Structs.Airline;
+    using Structs for Structs.Insurance;
+    event NotOwner(address);
+    event ContractAuthorized(address);
+    event FundsReceived(uint);
+    event VoteCast(address voter);
+    event FlightRegistered(string flightNumber);
 
     /********************************************************************************************/
     /*                                       DATA VARIABLES                                     */
     /********************************************************************************************/
-
-    struct Airline {
-        bool isRegistered;
-        address airlineAddress;
-        uint airlineIndex;
-        uint numVotes;
-    }
 
     // struct Vote {
     //     address[] voters;
     //     uint numVotes;
     // }
 
-    struct Insurance {
-        address[] insurees;
-        bytes32 flightKey;
-    }
-
     address public contractOwner;                                      // Account used to deploy contract
     bool private operational = true;                                    // Blocks all state changes throughout the contract if false
     mapping(address => bool) public allowedContracts;
-    mapping(address => Airline) public airlines;
+    mapping(address => Structs.Airline) public airlines;
     mapping(address => uint) public fundPool;
     mapping(address => address[]) public voters;
-    Insurance[] public policies;
-    Airline[] public airlinesArray;
-
-    event NotOwner(address);
-    event ContractAuthorized(address);
-    event FundsReceived(uint);
-    event VoteCast(address voter);
+    Structs.Insurance[] public policies;
+    Structs.Airline[] public airlinesArray;
+    Structs.Flight[] public flights;
 
     /********************************************************************************************/
     /*                                       EVENT DEFINITIONS                                  */
@@ -137,6 +130,21 @@ contract FlightSuretyData {
     * @dev Get operating status of contract
     *
     * @return A bool that is the current operating status
+    */  
+
+    function toBytes32(string memory _myString) internal pure returns(bytes32)
+    {
+        require(bytes(_myString).length <= 32);
+        bytes32 byteString;
+        assembly {
+            byteString := mload(add(_myString, 32))
+        }
+        return byteString;
+    }
+    /**
+    * @dev Get operating status of contract
+    *
+    * @return A bool that is the current operating status
     */      
     function isOperational() 
                             public 
@@ -158,7 +166,7 @@ contract FlightSuretyData {
                             returns(uint) 
     {
         // You have to initialize it straight away
-        Airline[] memory registeredAirlines = new Airline[](airlinesArray.length);
+        Structs.Airline[] memory registeredAirlines = new Structs.Airline[](airlinesArray.length);
         uint counter = 0;
         for(uint i = 0; i < airlinesArray.length; i++){
             if(airlinesArray[i].isRegistered){
@@ -209,20 +217,20 @@ contract FlightSuretyData {
     /**
     * @dev Register Flight
     */   
-    function registerContract
+    function registerFlight
                             (   
-                                address allowedContract
+                                address caller,
+                                address airline,
+                                string calldata flightNumber
                             )
-                            requireIsOperational()
-                            requireContractOwner()
+                            isApprovedAirline(caller)
                             external
                             payable
-                            returns(bool)
     {
-        allowedContracts[allowedContract] = true;
-        assert(allowedContracts[allowedContract] == true);
-        emit ContractAuthorized(allowedContract);
-        return true;
+        bytes32 flightNumberAsBytes = toBytes32(flightNumber);
+        Structs.Flight memory flight = Structs.Flight(true, flightNumberAsBytes, 0, uint32(block.timestamp),airline);
+        flights.push(flight);
+        emit FlightRegistered(flightNumber);
     }
 
     /**
@@ -267,7 +275,7 @@ contract FlightSuretyData {
             uint numberOfVotes
         )
     {
-     Airline storage airline = airlines[airlineArg];
+     Structs.Airline storage airline = airlines[airlineArg];
      return(
         airline.isRegistered,
         airline.airlineAddress,
@@ -296,7 +304,7 @@ contract FlightSuretyData {
     {
         require(caller != airline, "An airline cannot register itself");
         uint index = airlinesArray.length.add(1);
-        Airline memory airlineStruct = Airline({
+        Structs.Airline memory airlineStruct = Structs.Airline({
             isRegistered: registered,
             airlineAddress: airline,
             airlineIndex: index,
