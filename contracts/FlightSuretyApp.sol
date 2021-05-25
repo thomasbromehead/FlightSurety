@@ -127,20 +127,20 @@ contract FlightSuretyApp {
     */   
     function voteForAirline
                           (
-                              address airline,
-                              address caller
+                              address airline
                           )
                           requireIsOperational()
-                          isFunded(caller)
+                          isFunded(msg.sender)
                           external
                           returns(bool)
     {
-        
+        dataContract.voteForAirline(airline, msg.sender);
     }
    /**
     * @dev Add an airline to the registration queue
     *
     */
+    event TotalRegistered(uint count);
 
     function registerAirline
                             (
@@ -154,15 +154,14 @@ contract FlightSuretyApp {
                             returns(bool success, uint256 votes)
     {
         bool isSuccess;
-        // uint totalRegisteredAirlines = dataContract.numberOfRegisteredAirlines();
-        // if(totalRegisteredAirlines > 4){
-            // require multi sig
-        //     emit VotesNeeded(airline);
-        //     // numberOfVotes = dataContract.getVotes(airline);
-        //     isSuccess = dataContract.registerAirline(airline, false, caller);
-        // } else {
+        uint totalRegisteredAirlines = dataContract.numberOfRegisteredAirlines();
+        if(totalRegisteredAirlines >= 4){
+            // require multisig
+            emit VotesNeeded(airline);
+            isSuccess = dataContract.registerAirline(airline, false, caller);
+        } else {
             isSuccess = dataContract.registerAirline(airline, true, caller);
-        // }
+        }
         return(isSuccess, 0);
     }
 
@@ -180,6 +179,10 @@ contract FlightSuretyApp {
         dataContract.fundAirline(airline, msg.value);
         emit FundsReceived(airline, msg.value);
         return success;
+    }
+
+    function buyInsurance(Flight){
+
     }
 
     function getAirlineBalance
@@ -203,10 +206,11 @@ contract FlightSuretyApp {
                                 (
                                 )
                                 requireIsOperational()
+                                isFunded(msg.caller)
                                 external
-                                view
+                                //view // Why is it a view? This changes state??
     {
-
+        dataContract.registerFlight(msg.sender);
     }
     
    /**
@@ -225,7 +229,6 @@ contract FlightSuretyApp {
                                 view
     {
     }
-
 
     // Generate a request for oracles to fetch flight information
     function fetchFlightStatus

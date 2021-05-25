@@ -22,17 +22,24 @@ contract FlightSuretyData {
     //     uint numVotes;
     // }
 
+    struct Insurance {
+        address[] insurees;
+        bytes32 flightKey;
+    }
+
     address public contractOwner;                                      // Account used to deploy contract
     bool private operational = true;                                    // Blocks all state changes throughout the contract if false
     mapping(address => bool) public allowedContracts;
     mapping(address => Airline) public airlines;
     mapping(address => uint) public fundPool;
     mapping(address => address[]) public voters;
+    Insurance[] public policies;
     Airline[] public airlinesArray;
 
     event NotOwner(address);
     event ContractAuthorized(address);
     event FundsReceived(uint);
+    event VoteCast(address voter);
 
     /********************************************************************************************/
     /*                                       EVENT DEFINITIONS                                  */
@@ -96,8 +103,8 @@ contract FlightSuretyData {
     /**
     * @dev Modifier that checks whether an airline has already votes for another
     */
-    modifier hasNotVoted(address candidateAirline) {
-        assert(msg.sender != candidateAirline);
+    modifier hasNotVoted(address caller, address candidateAirline) {
+        require(msg.sender != candidateAirline, "Airline trying to vote for itself");
         bool alreadyVoted;
         for(uint i = 0; i < voters[candidateAirline].length; i++){
             if(voters[candidateAirline][i] == msg.sender){
@@ -145,7 +152,7 @@ contract FlightSuretyData {
     *
     */      
     function numberOfRegisteredAirlines() 
-                            external
+                            public
                             view 
                             // isAuthorizedContract()
                             returns(uint) 
@@ -182,6 +189,25 @@ contract FlightSuretyData {
     * @dev Add contracts that can call in
     *      
     *
+    */   
+    function registerContract
+                            (   
+                                address allowedContract
+                            )
+                            requireIsOperational()
+                            requireContractOwner()
+                            external
+                            payable
+                            returns(bool)
+    {
+        allowedContracts[allowedContract] = true;
+        assert(allowedContracts[allowedContract] == true);
+        emit ContractAuthorized(allowedContract);
+        return true;
+    }
+
+    /**
+    * @dev Register Flight
     */   
     function registerContract
                             (   
@@ -268,6 +294,7 @@ contract FlightSuretyData {
                             payable
                             returns(bool)
     {
+        require(caller != airline, "An airline cannot register itself");
         uint index = airlinesArray.length.add(1);
         Airline memory airlineStruct = Airline({
             isRegistered: registered,
@@ -318,11 +345,18 @@ contract FlightSuretyData {
                             )
                             external 
                             isAuthorizedContract()
-                            isApprovedAirline(airline)
-                            hasNotVoted(caller)
+                            isApprovedAirline(caller)
+                            hasNotVoted(caller, airline)
     {
+        require(caller != airline, "An airline cannot vote for itself");
         airlines[airline].numVotes.add(1);
+        // Register vote for candidate airline
         voters[airline].push(caller);
+        // Require > 50% of airlines to have voted to toggle isRegistered to true
+        if(voters[airline].length >= uint(numberOfRegisteredAirlines() / 2)){
+            airlines[airline].isRegistered = true;
+        }
+        emit VoteCast(caller);
     }
 
     /**
@@ -352,7 +386,7 @@ contract FlightSuretyData {
                             payable
                             
     {
-        
+
     }
 
     /**

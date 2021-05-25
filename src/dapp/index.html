@@ -10,7 +10,6 @@
 </head>
 
 <body>
-
     <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
         <a class="navbar-brand" href="#">FlightSurety</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault"
@@ -20,14 +19,21 @@
     </nav>
 
     <main class="container">
-
         <div id="display-wrapper" class="top-20">
+        </div>
+        <div class="row top-20">
+            <label class="form">Buy insurance for a flight</label> 
+            <select id="flight-dropdown">
+                <option value="UA487" data-id="3">UA487</option>
+                <option value="BA198" data-id="4">BA198</option>
+                <option value="AF6124" data-id="5">AF6124</option>
+            </select>
+            <btn class="btn btn-primary" onclick="App.buyInsurance" id="buy-insurance">Buy</btn>
         </div>
         <div class="row top-20">
             <label class="form">Flight</label> <input type="text" id="flight-number"> <btn class="btn btn-primary" id="submit-oracle">Submit to Oracles</btn>
         </div>
     </main>
-
 </body>
-
+<script src="./index.js"></script>
 </html>
