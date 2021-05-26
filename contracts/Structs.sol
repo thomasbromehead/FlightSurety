@@ -10,10 +10,10 @@ library Structs {
     address airline;
   }
 
-  struct Insurance {
-    address[] insurees;
-    bytes32 flightKey;
-  }
+  // struct Insurance {
+  //   address[] insurees;
+  //   bytes32 flightKey;
+  // }
 
   struct Airline {
     bool isRegistered;
@@ -21,4 +21,15 @@ library Structs {
     uint airlineIndex;
     uint numVotes;
   }
+
+
+    function toBytes32(string memory _myString) internal pure returns(bytes32)
+    {
+        require(bytes(_myString).length <= 32);
+        bytes32 byteString;
+        assembly {
+            byteString := mload(add(_myString, 32))
+        }
+        return byteString;
+    }
 }

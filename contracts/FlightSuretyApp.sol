@@ -1,4 +1,5 @@
 pragma solidity 0.6.0;
+pragma experimental ABIEncoderV2;
 
 // It's important to avoid vulnerabilities due to numeric overflow bugs
 // OpenZeppelin's SafeMath library, when used correctly, protects agains such bugs
@@ -24,6 +25,7 @@ contract FlightSuretyApp {
     uint8 private constant STATUS_CODE_LATE_WEATHER = 30;
     uint8 private constant STATUS_CODE_LATE_TECHNICAL = 40;
     uint8 private constant STATUS_CODE_LATE_OTHER = 50;
+    uint8 private constant MAX_INSURANCE_PRICE = 1;
 
     // Account used to deploy contract
     address public contractOwner;          
@@ -32,6 +34,8 @@ contract FlightSuretyApp {
 
     event VotesNeeded(address airline);
     event FundsReceived(address, uint);
+    event VoteCast(address voter);
+    event InsurancePurchased(bytes32 flightNumber, address insuree);
 
  
     /********************************************************************************************/
@@ -71,6 +75,27 @@ contract FlightSuretyApp {
         uint balance = dataContract.getAirlineBalance(airline);
         require(balance >= 10 ether, "Airline's balance is less than 10 ether");
         _;
+    }
+
+    modifier hasNotBoughtInsurance(bytes32 flightNumber) {
+        bool hasBought;
+        address[] memory policies = dataContract.getPolicies(flightNumber);
+        for(uint i = 0; i < policies.length; i++){
+            if(policies[i] == msg.sender){ 
+                hasBought = true;
+            }
+        }
+        require(!hasBought, "You already bought an insurance for this flight");
+        _;
+    }
+
+    modifier registerIfEnoughVotes(address airline) {
+        _;
+        address[] memory voters = dataContract.getVoters(airline);
+        if(voters.length >= uint(dataContract.numberOfRegisteredAirlines() / 2)){
+            dataContract.setRegistered(airline);
+        }
+        emit VoteCast(msg.sender);
     }
 
     /********************************************************************************************/
@@ -115,17 +140,17 @@ contract FlightSuretyApp {
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
    /**
-    * @dev Add an airline to the registration queue
+    * @dev Vote for an airline
     *
-    */   
+    */ 
     function voteForAirline
                           (
                               address airline
                           )
                           requireIsOperational()
                           isFunded(msg.sender)
+                          registerIfEnoughVotes(airline)
                           external
-                          returns(bool)
     {
         dataContract.voteForAirline(airline, msg.sender);
     }
@@ -133,7 +158,6 @@ contract FlightSuretyApp {
     * @dev Add an airline to the registration queue
     *
     */
-    event TotalRegistered(uint count);
 
     function registerAirline
                             (
@@ -174,9 +198,19 @@ contract FlightSuretyApp {
         return success;
     }
 
-    // function buyInsurance(Flight){
-
-    // }
+    function buyInsurance(address airline, string calldata flightNumber) external payable
+    // hasNotBoughtInsurance(flightNumber)
+    {
+        require(msg.value <=  MAX_INSURANCE_PRICE && msg.value >= 0, "Insurance costs at most 1 ether");
+        // Fund contract
+        (bool success, ) = address(dataContract).call.value(msg.value)("");
+        require(success, "Failed to buy insurance");
+        bytes32 flightNumberAsBytes = Structs.toBytes32(flightNumber);
+        // Apply logic
+        bool success2 = dataContract.buyInsurance(airline, flightNumberAsBytes, msg.sender);
+        require(success2, "Failed to register insuree");
+        emit InsurancePurchased(flightNumberAsBytes, msg.sender);
+    }
 
     function getAirlineBalance
                         (
@@ -244,7 +278,6 @@ contract FlightSuretyApp {
                                                 requester: msg.sender,
                                                 isOpen: true
                                             });
-
         emit OracleRequest(index, airline, flight, timestamp);
     } 
 

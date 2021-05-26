@@ -5,7 +5,7 @@ import './flightsurety.css';
 
 
 window.addEventListener('load', () => {
-    (async() => {
+    (() => {
         console.log('loaded');
         let result = null;
         let contract = new Contract('localhost', () => {    
@@ -22,11 +22,8 @@ window.addEventListener('load', () => {
                 contract.fetchFlightStatus(flight, (error, result) => {
                     display('Oracles', 'Trigger oracles', [ { label: 'Fetch Flight Status', error: error, value: result.flight + ' ' + result.timestamp} ]);
                 });
-            })
-        
+            });
         });
-        
-    
     })();
     
     

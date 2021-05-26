@@ -14,7 +14,8 @@ flightSuretyApp.events.OracleRequest({
     fromBlock: 0
   }, function (error, event) {
     if (error) console.log(error)
-    console.log(event)
+    console.log(event);
+    alert(event);
 });
 
 const app = express();

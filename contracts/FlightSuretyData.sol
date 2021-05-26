@@ -1,6 +1,7 @@
 pragma solidity 0.6.0;
+pragma experimental ABIEncoderV2;
+
 import "./Structs.sol";
-// pragma experimental ABIEncoderV2;
 
 import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
 
@@ -8,13 +9,11 @@ contract FlightSuretyData {
     using SafeMath for uint256;
     using Structs for Structs.Flight;
     using Structs for Structs.Airline;
-    using Structs for Structs.Insurance;
     event NotOwner(address);
     event ContractAuthorized(address);
     event FundsReceived(uint);
-    event VoteCast(address voter);
     event FlightRegistered(string flightNumber);
-
+    event AirlineRegistered(address airline);
     /********************************************************************************************/
     /*                                       DATA VARIABLES                                     */
     /********************************************************************************************/
@@ -30,9 +29,9 @@ contract FlightSuretyData {
     mapping(address => Structs.Airline) public airlines;
     mapping(address => uint) public fundPool;
     mapping(address => address[]) public voters;
-    Structs.Insurance[] public policies;
+    mapping(bytes32 => address[]) public policies;
     Structs.Airline[] public airlinesArray;
-    Structs.Flight[] public flights;
+    mapping(address => Structs.Flight[]) public flights;
 
     /********************************************************************************************/
     /*                                       EVENT DEFINITIONS                                  */
@@ -100,7 +99,7 @@ contract FlightSuretyData {
         require(msg.sender != candidateAirline, "Airline trying to vote for itself");
         bool alreadyVoted;
         for(uint i = 0; i < voters[candidateAirline].length; i++){
-            if(voters[candidateAirline][i] == msg.sender){
+            if(voters[candidateAirline][i] == caller){
                 alreadyVoted = true;
             }
         }
@@ -108,19 +107,29 @@ contract FlightSuretyData {
         _;
     }
 
-
-
     /**
     * @dev Modifier that requires the calling account to be an authorized contract
     */
+    event ShowMe(bool);
     modifier isAuthorizedContract() {
         require(isContractAuthorized(msg.sender), "The calling contract has not been authorized to call in");
         _;
     }
 
     /**
-    * @dev Check that an airline isn't yet registered (for votes)
+    * @dev Check that flight is registered
     */
+    modifier flightIsRegistered(address airline, bytes32 flightNumber){
+        bool registeredFlight;
+        for(uint i = 0; i < flights[airline].length; i++){
+            if(flights[airline][i].flightNumber == flightNumber){
+                registeredFlight = flights[airline][i].isRegistered;
+            }
+        }
+        require(registeredFlight, "You cannot buy insurance for a flight that's not registered");
+        _;
+    }
+
 
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
@@ -132,15 +141,6 @@ contract FlightSuretyData {
     * @return A bool that is the current operating status
     */  
 
-    function toBytes32(string memory _myString) internal pure returns(bytes32)
-    {
-        require(bytes(_myString).length <= 32);
-        bytes32 byteString;
-        assembly {
-            byteString := mload(add(_myString, 32))
-        }
-        return byteString;
-    }
     /**
     * @dev Get operating status of contract
     *
@@ -177,6 +177,25 @@ contract FlightSuretyData {
         return registeredAirlines.length;
     }
 
+    /**
+    * @dev Return policies dynamic arrays, possible thanks to the experimental encoder
+    */   
+    function getPolicies(bytes32 flightNumber) external view returns(address[] memory){
+        return policies[flightNumber];
+    }
+
+    // For testing
+    function getPoliciesString(string calldata flightNumber) external view returns(address[] memory){
+        bytes32 flightNumberAsBytes = Structs.toBytes32(flightNumber);
+        return policies[flightNumberAsBytes];
+    }
+
+    /**
+    * @dev Return voters dynamic arrays, possible thanks to the experimental encoder
+    */   
+    function getVoters(address airline) external view returns(address[] memory){
+        return voters[airline];
+    }
 
     /**
     * @dev Sets contract operations on/off
@@ -195,8 +214,6 @@ contract FlightSuretyData {
 
     /**
     * @dev Add contracts that can call in
-    *      
-    *
     */   
     function registerContract
                             (   
@@ -223,13 +240,15 @@ contract FlightSuretyData {
                                 address airline,
                                 string calldata flightNumber
                             )
+                            isAuthorizedContract()
                             isApprovedAirline(caller)
+                            isApprovedAirline(airline)
                             external
                             payable
     {
-        bytes32 flightNumberAsBytes = toBytes32(flightNumber);
-        Structs.Flight memory flight = Structs.Flight(true, flightNumberAsBytes, 0, uint32(block.timestamp),airline);
-        flights.push(flight);
+        bytes32 flightNumberAsBytes = Structs.toBytes32(flightNumber);
+        Structs.Flight memory flight = Structs.Flight(true, flightNumberAsBytes, 0, uint32(block.timestamp), airline);
+        flights[airline].push(flight);
         emit FlightRegistered(flightNumber);
     }
 
@@ -312,8 +331,12 @@ contract FlightSuretyData {
         });
         airlines[airline] = airlineStruct;
         airlinesArray.push(airlineStruct);
-        airlinesArray.length.add(1);
+        emit AirlineRegistered(airline);
         return true;
+    }
+
+    function setRegistered(address airline) public {
+        airlines[airline].isRegistered = true;
     }
 
     /**
@@ -346,6 +369,8 @@ contract FlightSuretyData {
     * @dev Vote for an airline
     *
     */ 
+    event NumVotes(uint votes);
+
     function voteForAirline
                             (
                                 address airline,
@@ -357,14 +382,14 @@ contract FlightSuretyData {
                             hasNotVoted(caller, airline)
     {
         require(caller != airline, "An airline cannot vote for itself");
-        airlines[airline].numVotes.add(1);
+        emit NumVotes(airlines[airline].numVotes);
+        airlines[airline].numVotes = (airlines[airline].numVotes).add(1);
         // Register vote for candidate airline
         voters[airline].push(caller);
         // Require > 50% of airlines to have voted to toggle isRegistered to true
         if(voters[airline].length >= uint(numberOfRegisteredAirlines() / 2)){
             airlines[airline].isRegistered = true;
         }
-        emit VoteCast(caller);
     }
 
     /**
@@ -386,16 +411,36 @@ contract FlightSuretyData {
     * @dev Buy insurance for a flight
     *
     */   
-    function buy
-                            (                             
+    function buyInsurance
+                            (       
+                                address airline, 
+                                bytes32 flightNumber,
+                                address caller
                             )
                             isAuthorizedContract()
+                            flightIsRegistered(airline, flightNumber)
                             external
                             payable
-                            
+                            returns(bool)
     {
-
+        // bytes32 flightNumberAsBytes = Structs.toBytes32(flightNumber);
+        address[] storage policy = policies[flightNumber];
+        policy.push(caller);
+        return true;
     }
+
+   /**
+    * @dev Get list of registered flights
+    */  
+    function getRegisteredFlights(address airline) public view returns(bytes32[] memory)
+    {
+        bytes32[] memory registeredFlightNumbers = new bytes32[](flights[airline].length);
+        for(uint i = 0; i < flights[airline].length; i++){
+            registeredFlightNumbers[i] = flights[airline][i].flightNumber;
+        } 
+        return registeredFlightNumbers;
+    }
+
 
     /**
      *  @dev Credits payouts to insurees

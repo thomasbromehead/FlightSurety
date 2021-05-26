@@ -7,6 +7,7 @@ contract('Flight Surety Tests', async (accounts) => {
 
     // TEST SETTING RETRIEVING MSG.VALUE FROM APP CONTRACT IN DATA CONTRACT
   const owner = accounts[0];
+  console.log("ACCOUNTS AVAILABLE", accounts);
   var config;
   before('setup contract', async () => {
     config = await Test.Config(accounts);
@@ -83,19 +84,19 @@ contract('Flight Surety Tests', async (accounts) => {
     catch(e) {
 
     }
-    let result = await config.flightSuretyData.isAirline.call(newAirline); 
+    let result = await config.flightSuretyData.airlines(newAirline); 
 
     // ASSERT
-    assert.equal(result, false, "Airline should not be able to register another airline if it hasn't provided funding");
+    assert.equal(result.isRegistered, false, "Airline should not be able to register another airline if it hasn't provided funding");
 
   });
 
   it('(data contract owner) should allow the owner to add authorized app contracts as consumers', async () => {
       try {
-        let isAllowedContract = await config.flightSuretyData.isAuthorizedContract(accounts[0]);
+        let isAllowedContract = await config.flightSuretyData.isContractAuthorized(accounts[0]);
         assert.equal(isAllowedContract, false);
         await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: accounts[0]})
-        isAllowedContract = await config.flightSuretyData.isAuthorizedContract(accounts[0]);
+        isAllowedContract = await config.flightSuretyData.isContractAuthorized(accounts[0]);
         assert.equal(isAllowedContract, true);
       } catch(e) {
         console.log("This error was thrown", e);
@@ -103,8 +104,8 @@ contract('Flight Surety Tests', async (accounts) => {
   })
 
   it('Should revert if the contract has not been authorized to call into the Data contract', async () => {
-      await TruffleAssert.reverts(config.flightSuretyData.isOperational().call({from: owner}));
-  })
+      await TruffleAssert.reverts(config.flightSuretyData.registerFlight(config.firstAirline, config.firstAirline, "UI987", {from: config.firstAirline}));
+  })                           
 
   it('should return the data contract\'s address', async () => {
       let dataContractAddress = config.flightSuretyData.address;
@@ -119,7 +120,13 @@ contract('Flight Surety Tests', async (accounts) => {
   })
 
   it('An airline\'s index should increment as new airlines are registered', async () => {
-    await config.flightSuretyApp.registerAirline(newAirline, {from: config.firstAirline});
+    await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: accounts[0]});
+    await config.flightSuretyApp.fundAirline(config.firstAirline, {from: config.firstAirline, value: web3.utils.toWei('10', 'ether')});
+    await config.flightSuretyApp.registerAirline(config.secondAirline, config.firstAirline, {from: config.firstAirline});
+    let airline1Info = await config.flightSuretyData.fetchAirlineBuffer(config.firstAirline);
+    let airline2Info = await config.flightSuretyData.fetchAirlineBuffer(config.secondAirline);
+    assert.equal(airline1Info[2], 1);
+    assert.equal(airline2Info[2], 2);
   })
 
   it('An airline should be able to fund its account', async () => {
@@ -149,7 +156,6 @@ contract('Flight Surety Tests', async (accounts) => {
             TruffleAssert.eventEmitted(registrationTx, "VotesNeeded");
             // Sixth airline should not be registered
             let airlineInfo = await config.flightSuretyData.fetchAirlineBuffer(config.sixthAirline);
-            console.log("AIRLINE INFO", airlineInfo);
             assert.equal(airlineInfo[0], false);
         })
 
@@ -182,22 +188,28 @@ contract('Flight Surety Tests', async (accounts) => {
             await TruffleAssert.reverts(config.flightSuretyApp.fundAirline(config.fifthAirline, {from: config.fifthAirline, value: web3.utils.toWei('10', 'ether')}));
         })
 
-        it('(airline) Should be impossible to vote for another airline if you haven\'t commited at least 10 ether', async () => {
+        it('(airline) Should be impossible to vote for another airline if airline hasn\'t commited at least 10 ether', async () => {
             await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: owner});
             await TruffleAssert.reverts(config.flightSuretyApp.registerAirline(config.secondAirline, config.firstAirline));
         })
             
         it('Returns the number of votes an airline has received', async () => {
             let authorizeContractTx = await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: owner});
-            TruffleAssert.eventEmitted(authorizeContractTx, "ContractAuthorized");
+            // TruffleAssert.eventEmitted(authorizeContractTx, "ContractAuthorized");
             await config.flightSuretyApp.fundAirline(config.firstAirline, {from: config.firstAirline, value: web3.utils.toWei('10', 'ether')});
             await config.flightSuretyApp.registerAirline(config.secondAirline, config.firstAirline);
+            await config.flightSuretyApp.fundAirline(config.secondAirline, {from: config.secondAirline, value: web3.utils.toWei('10', 'ether')});
             await config.flightSuretyApp.registerAirline(config.thirdAirline, config.firstAirline);
             await config.flightSuretyApp.registerAirline(config.fourthAirline, config.firstAirline);
             await config.flightSuretyApp.registerAirline(config.fifthAirline, config.firstAirline);
             await config.flightSuretyApp.voteForAirline(config.fifthAirline, {from: config.firstAirline});
-            let firstAirlineInfo = await config.flightSuretyApp.fetchAirlineBuffer(config.fifthAirline);
-            assert.equal(firstAirlineInfo[3], 1);
+            let fifthAirlineInfo = await config.flightSuretyData.fetchAirlineBuffer(config.fifthAirline);
+            console.log(fifthAirlineInfo);
+            assert.equal(fifthAirlineInfo[3], 1);
+            await config.flightSuretyApp.voteForAirline(config.fifthAirline, {from: config.secondAirline});
+            let fifthAirlineInfoAfterSecondVote = await config.flightSuretyData.fetchAirlineBuffer(config.fifthAirline);
+            console.log(fifthAirlineInfoAfterSecondVote);
+            assert.equal(fifthAirlineInfoAfterSecondVote[3], 2);
         })
 
         it('(airline) More than half of the airlines need to have voted for an airline for it to become registered', async () => {
@@ -215,7 +227,8 @@ contract('Flight Surety Tests', async (accounts) => {
             let fifthAirlineInfo = await config.flightSuretyData.fetchAirlineBuffer(config.fifthAirline);
             console.log(fifthAirlineInfo);
             assert.equal(fifthAirlineInfo[0], false);
-            await config.flightSuretyApp.voteForAirline(config.fifthAirline, {from: config.secondAirline});
+            let voteTx = await config.flightSuretyApp.voteForAirline(config.fifthAirline, {from: config.secondAirline});
+            TruffleAssert.eventEmitted(voteTx, "VoteCast");
             let fifthAirlineInfoAfterVote = await config.flightSuretyData.fetchAirlineBuffer(config.fifthAirline);
             assert.equal(fifthAirlineInfoAfterVote[0], true);
         })
@@ -255,24 +268,39 @@ contract('Flight Surety Tests', async (accounts) => {
         // Vote For Fifth Airline
         await config.flightSuretyApp.voteForAirline(config.fifthAirline, {from: config.firstAirline});
         // Vote again
-        let voters = await config.flightSuretyData.voters.call(config.fifthAirline, 0);
-        console.log("These people have voted", voters);
-        await TruffleAssert.reverts(config.flightSuretyApp.voteForAirline(config.fifthAirline, {from: config.firstAirline}));
-        let votersSecond = await config.flightSuretyData.voters.call(config.fifthAirline, 0);
-        console.log("These people have voted", votersSecond);
+        await TruffleAssert.reverts(config.flightSuretyApp.voteForAirline(config.fifthAirline, {from: config.firstAirline}));        
     });
 
     describe('passengers', () => {
+        it('A passenger can purchase insurance for a registered flight', async () => {
+            const flightNumber = "UJ234";
+            await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: owner});
+            await config.flightSuretyApp.fundAirline(config.firstAirline, {from: config.firstAirline, value: web3.utils.toWei('20', 'ether')});
+            let registerFlightTx = await config.flightSuretyApp.registerFlight(config.firstAirline, flightNumber, {from: config.firstAirline});
+            // For some reason this event never gets caught...
+            // TruffleAssert.eventEmitted(registerFlightTx, "FlightRegistered");
+            let registeredFlights = await config.flightSuretyData.getRegisteredFlights(config.firstAirline);
+            assert.equal(registeredFlights.length, 1);
+            let insurancePurchaseTx = await config.flightSuretyApp.buyInsurance(config.firstAirline, flightNumber, {from: accounts[8]});
+            TruffleAssert.eventEmitted(insurancePurchaseTx, "InsurancePurchased");
+            await config.flightSuretyApp.buyInsurance(config.firstAirline, flightNumber, {from: accounts[9]});
+            let policyHolders = await config.flightSuretyData.getPoliciesString(flightNumber);
+            assert.equal(policyHolders[0], accounts[8]);
+            assert.equal(policyHolders[1], accounts[9]);
+            assert.equal(policyHolders.length, 2);
+        })
 
+        it('A passenger cannot purchase insurance for a non-registered flight', async () => {
+            const flightNumber = "UJ234";
+            await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: owner});
+            await config.flightSuretyApp.fundAirline(config.firstAirline, {from: config.firstAirline, value: web3.utils.toWei('20', 'ether')});
+            await TruffleAssert.reverts(config.flightSuretyApp.buyInsurance(config.firstAirline, flightNumber, {from: accounts[8]}), "You cannot buy insurance for a flight that's not registered.");
+        })
+
+        it('A passenger cannot purchase insurance for more than 1 ether', async () => {
+
+        })
     });
-
-    it.only('(airline) Can register a flight', async () => {
-        await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: owner});
-        let fundTx = await config.flightSuretyApp.fundAirline(config.firstAirline, {from: config.firstAirline, value: web3.utils.toWei('10', 'ether')});
-        TruffleAssert.eventEmitted(fundTx, "FundsReceived");
-        // let registerFlightTx = await config.flightSuretyApp.registerFlight(config.firstAirline, "UJ234", {from: config.firstAirline});
-        // TruffleAssert.eventEmitted(registerFlightTx, "FlightRegistered");
-    })
 
     it('(airline) An airline can only register a flight for itself', async () => {
 
