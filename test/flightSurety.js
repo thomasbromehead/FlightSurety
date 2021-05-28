@@ -138,7 +138,6 @@ contract('Flight Surety Tests - Airline Registration ', async (accounts) => {
     let authorizeContractTx = await config.flightSuretyData.registerContract(config.flightSuretyApp.address, {from: owner});
     TruffleAssert.eventEmitted(authorizeContractTx, "ContractAuthorized");
     let numberOfRegisteredAirlinesOnInitialization = await config.flightSuretyData.numberOfRegisteredAirlines.call();
-    console.log("NUMBER OF REGISTERED AIRLINES ON INITIALIZATION", numberOfRegisteredAirlinesOnInitialization);
     assert.equal(numberOfRegisteredAirlinesOnInitialization, 1);
     await config.flightSuretyApp.fundAirline(config.firstAirline, {from: config.firstAirline, value: web3.utils.toWei('10', 'ether')});
     await config.flightSuretyApp.registerAirline(secondAirlineName, config.secondAirline, config.firstAirline);

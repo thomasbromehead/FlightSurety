@@ -1,13 +1,15 @@
 import FlightSuretyApp from '../../build/contracts/FlightSuretyApp.json';
+import FlightSuretyData from '../../build/contracts/FlightSuretyData.json';
 import Config from './config.json';
 import Web3 from 'web3';
 
 export default class Contract {
     constructor(network, callback) {
         let config = Config[network];
-        debugger;
         this.web3 = new Web3(new Web3.providers.HttpProvider(config.url));
+        console.log("WEB3 SET IN CONSTRUCTOR IS", this.web3);
         this.flightSuretyApp = new this.web3.eth.Contract(FlightSuretyApp.abi, config.appAddress);
+        this.flightSuretyData = new this.web3.eth.Contract(FlightSuretyData.abi, config.dataAddress)
         this.initialize(callback);
         this.owner = null;
         this.airlines = {};
@@ -15,21 +17,20 @@ export default class Contract {
     }
 
     initialize(callback) {
-        console.log('Initialize');
-        this.web3.eth.getAccounts((error, accts) => {
-            debugger;
-            console.log("Accounts are", accts);
-            this.owner = accts[0];
+        (async () => { 
+            let accounts = await this.web3.eth.getAccounts();
+            this.owner = accounts[0];
             let counter = 1;
+            document.getElementById("appContractAddress").value = this.flightSuretyApp._address;
             const airlineNames = ["British Airways", "Air France", "Alitalia", "Royal Air Maroc", "TAP", "Sabena"];
             for(let i = 0; i < 5; i++ ){
-                this.airlines[airlineNames[i].toString()] = accts[counter++];
+                this.airlines[airlineNames[i].toString()] = accounts[counter++];
             }
             while(this.passengers.length < 5) {
-                this.passengers.push(accts[counter++]);
+                this.passengers.push(accounts[counter++]);
             }
             callback();
-        });
+        })();
     }
 
     isOperational(callback) {
@@ -46,12 +47,37 @@ export default class Contract {
         .call({from: self.owner}, callback)
     }
 
+    authorizeContract(address, caller){
+        let self = this;
+        try {
+            self.flightSuretyData.methods
+            .registerContract(address)
+            .send({from: caller, value: web3.utils.toWei('1', 'ether')}).catch(err => alert(`This happenned ${err}`))
+        } catch (error) {
+            alert(`This happened ${error}`);
+        }
+    }
+
+    isContractAuthorized(address, caller){
+        let self = this;
+        try {
+            self.flightSuretyData.methods
+            .isContractAuthorized(address)
+            .send({from: caller}).catch(err => alert(`This happenned ${err}`))
+        } catch (error) {
+            alert(`This happened ${error}`);
+        }
+    }
+
     fundAccount(airlineAddress, caller, callback){
         let localReceipt;
         let self = this;
         self.flightSuretyApp.methods
         .fundAirline(airlineAddress)
-        .send({from: caller}).then(receipt => localReceipt = receipt);
+        .send({from: caller}).then(receipt => {
+            alert(`Receipt: ${localReceipt}`);
+            localReceipt = receipt;
+        });
         return localReceipt;
     }
 
@@ -65,11 +91,10 @@ export default class Contract {
 
     registerOracle(callback, caller){
         let self = this;
-        console.log(caller);
-        console.log("Registering oracles");
+        console.log("REGISTERING ORACLES");
         self.flightSuretyApp.methods
         .registerOracle()
-        .send({from: self.owner, value: web3.utils.toWei('2', 'ether')}, callback)
+        .send({from: caller, value: web3.utils.toWei('1', 'ether')}, callback);
     }
 
     fetchFlightStatus(airline, flight, callback) {

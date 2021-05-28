@@ -27,6 +27,16 @@ flightSuretyApp.events.OracleRegistered().on('data', async (event) => {
   console.log("OracleRegistered data: ", event.returnValues);
 }).on('error', (error) => console.log("An error occured", error));
 
+flightSuretyApp.events.FundsReceived({
+  fromBlock: 0
+}).on('data', async (event, error) => {
+  alert('Funds Received!!');
+  alert(event.returnValues);
+  if(error){
+    console.log("ISSUE RECEIVING FUNDS", error);
+  }
+}).on('error', (error) => console.log("An error occured", error));
+
 
 flightSuretyApp.events.Toto({
   fromBlock: 0

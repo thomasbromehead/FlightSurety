@@ -8,7 +8,8 @@ import flightSuretyApp from "../../build/contracts/FlightSuretyApp.json";
 const App = {
     web3Provider: null,
     metamaskAccount: null,
-    contract: null,
+    appContract: null,
+    dataContract: null,
     accounts: {},
     display: async (title, description, results) => {
         let displayDiv = DOM.elid("display-wrapper");
@@ -25,8 +26,11 @@ const App = {
     },
     registerOracles: () => {
         let providers = oracleProviders.thirdPartyServices;
+        console.log("PROVIDERS", providers);
         for(let i = 0; i <= 20; i++){
-            App.contract.registerOracle((error, result) => {
+            App.appContract.registerOracle((error, result) => {
+                if(error){ console.log(error) }
+                if(result){ console.log(result) }
             }, providers[i]);
         }
     },
@@ -45,6 +49,7 @@ const App = {
     },
     bindEvents: function() {
         const actionButtons = Array.from(document.querySelectorAll("[data-id]"));
+        console.log("WEB3", web3);
         actionButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 web3.eth.getAccounts(function(err, res) {
@@ -61,29 +66,44 @@ const App = {
     },
     setDefaultAirlineAddress: function() {
         let addressInput = document.getElementById("airlineAddress")
-        addressInput.value = App.contract.airlines["British Airways"];
+        addressInput.value = App.appContract.airlines["British Airways"];
     },
     setDefaultContractAddress: function(){
-        debugger;
-        App.contract.flightSuretyApp.address
+        App.appContract.flightSuretyApp.address
     },
     handleButtonClick: async function(event) {
         event.preventDefault();
         var processId = parseInt(event.target.dataset.id);
         let airlineName = document.getElementById("airline-name-registration").value;
         let airlineAddress = document.getElementById("airlineAddress").value;
+        let contractAddress = document.getElementById("appContractAddress").value;
         switch(processId) {
             case 1:
-                // return await App.addRole(event);
+                try {
+                    return await App.dataContract.authorizeContract(contractAddress, App.metamaskAccountID, (error, res) => { 
+                        if(error) alert(error);
+                        if(res) alert(res);
+                    });
+                } catch (error) {
+                    alert(error);
+                    return
+                }
                 break;
             case 2:
+                try {
+                    let tx =  await App.dataContract.isContractAuthorized(contractAddress, App.metamaskAccountID);
+                    console.log(tx);
+                } catch (error) {
+                    alert(error)
+                }
+            case 3:
                 // MAKE SURE THE PERSON IS LOGGED IN WITH THE RIGHT ACCOUNT OR IS CONTRACT OWNER
                 let callerCheck = this.checkAccountCorresponds(airlineName);
                 if(callerCheck) {
                     try {
-                        return await App.contract.registerAirline(airlineName, airlineAddress, App.metamaskAccountID, (error, res) => { 
+                        return await App.appContract.registerAirline(airlineName, airlineAddress, App.metamaskAccountID, (error, res) => { 
                             if(error) alert(error);
-                            if(res) console.log(tx)
+                            if(res) console.log(tx);
                         });
                     } catch (error) {
                         alert(error);
@@ -92,26 +112,26 @@ const App = {
                 }
                 return "Incorrect calling account,  make sure you are either the owner or the airline trying to register";
             case 3:
-                return await App.contract.fundAccount(airlineAddress, App.metamaskAccountID);
+                return await App.appContract.fundAccount(airlineAddress, App.metamaskAccountID);
             case 19:
                 console.log("here");
                 let flightNumber = document.getElementById("flight-dropdown").value;
                 console.log("Flight Number: ", flightNumber);
                 let airline = document.getElementById("airline-dropdown").value;
                 console.log("AIRLINE", airline);
-                return await App.contract.fetchFlightStatus(airline, flightNumber, () => { });
+                return await App.appContract.fetchFlightStatus(airline, flightNumber, () => { });
                 break;
         }
     },
     checkAccountCorresponds: function(name){
-        return (App.contract.airlines[name] == App.metamaskAccountID || App.metamaskAccountID == App.contract.owner);
+        return (App.appContract.airlines[name] == App.metamaskAccountID || App.metamaskAccountID == App.appContract.owner);
     },
     setAccounts: function(){
-        this.accounts[App.contract.owner] = "Contract Owner";
-        for(let i = 0; i < App.contract.passengers.length; i++){
-            this.accounts[App.contract.passengers[i]] = `Passenger ${i}`
+        this.accounts[App.appContract.owner] = "Contract Owner";
+        for(let i = 0; i < App.appContract.passengers.length; i++){
+            this.accounts[App.appContract.passengers[i]] = `Passenger ${i}`
         }
-        let airlineEntries = Object.entries(App.contract.airlines);
+        let airlineEntries = Object.entries(App.appContract.airlines);
         for(const airline of airlineEntries){
             this.accounts[airline[1]] = airline[0];
         }
@@ -125,28 +145,31 @@ window.addEventListener('load', async () => {
     let dropdown = document.getElementById("airline-name-registration");
     let addressInput = document.getElementById("airlineAddress")
     dropdown.addEventListener('change', () => {
-        addressInput.value = App.contract.airlines[dropdown.value];
+        addressInput.value = App.appContract.airlines[dropdown.value];
     })
 
     if (window.ethereum) {
         App.web3Provider = window.ethereum;
-        try {
-            // Request account access
-            await window.ethereum.enable();
-        } catch (error) {
-            // User denied account access...
-            console.error("User denied account access")
+            try {
+                // Request account access
+                await window.ethereum.enable();
+                console.log("enabled window.ethereum");
+            } catch (error) {
+                // User denied account access...
+                console.error("User denied account access")
+            }
         }
-    }
-    // Legacy dapp browsers...
+        // Legacy dapp browsers...
     else if (window.web3) {
         App.web3Provider = window.web3.currentProvider;
     }
-    // If no injected web3 instance is detected, fall back to Ganache
+        // If no injected web3 instance is detected, fall back to Ganache
     else {
         App.web3Provider = new Web3.providers.HttpProvider('http://localhost:7545');
     }
-    web3 = new Web3(App.web3Provider);
+    
+
+    web3 = new Web3(App.web3Provider)
     
     // Add event listeners
     window.ethereum.on('accountsChanged', () => { 
@@ -163,25 +186,14 @@ window.addEventListener('load', async () => {
     })
 
     let result = null;
-    App.contract = new Contract('localhost', () => {   
+    App.appContract = new Contract('localhost', () => {   
         App.setAccounts(); 
         // Read transaction
-        App.contract.isOperational((error, result) => {
+        App.appContract.isOperational((error, result) => {
             console.log(error,result);
             App.display('Operational Status', 'Check if contract is operational', [ { label: 'Operational Status', error: error, value: result} ]);
         });
         App.setDefaultAirlineAddress();
-        App.setDefaultAppContractAddress();
-        App.contract.toto((error, result) => {
-            if(error){
-                console.log("TOTO ERRORED", error);
-            }
-            if(result){
-                console.log("RESULT FROM TOTO", result);
-            }
-            // console.log(error,result);
-            // App.display('Operational Status', 'Check if contract is operational', [ { label: 'Operational Status', error: error, value: result} ]);
-        });
     
         // User-submitted transaction
         // DOM.elid('submit-oracle').addEventListener('click', () => {
@@ -192,10 +204,15 @@ window.addEventListener('load', async () => {
         //     });
         // });
     });
+    App.dataContract = new Contract('localhost', () => {
+
+    });
+
     App.setAccounts().then( res => {
         // alert(res);
         App.setActiveUser();
     });
+
     App.bindEvents();
     App.registerOracles();
 });

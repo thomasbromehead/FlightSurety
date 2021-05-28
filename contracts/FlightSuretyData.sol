@@ -227,7 +227,6 @@ contract FlightSuretyData {
                             returns(bool)
     {
         allowedContracts[allowedContract] = true;
-        assert(allowedContracts[allowedContract] == true);
         emit ContractAuthorized(allowedContract);
         return true;
     }
