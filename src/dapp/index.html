@@ -10,7 +10,7 @@
 </head>
 
 <body>
-    <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top">
         <a class="navbar-brand" href="#">FlightSurety</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault"
             aria-expanded="false" aria-label="Toggle navigation">
@@ -19,20 +19,71 @@
     </nav>
 
     <main class="container">
+        <div >You are using the app as: <span id="user"></span></div>
+        <div>Also known as <span id="accountAlias"></span></div>
         <div id="display-wrapper" class="top-20">
         </div>
-        <div class="row top-20">
-            <label class="form">Buy insurance for a flight</label> 
-            <select id="flight-dropdown">
-                <option value="UA487" data-id="3">UA487</option>
-                <option value="BA198" data-id="4">BA198</option>
-                <option value="AF6124" data-id="5">AF6124</option>
+        <section class="action-area">
+            <h1>Admin Panel</h1>
+            <h3>Authorize App Contract to call into Data Contrat</h3>
+            <input type="text" id="appContractAddress" value="">
+            <btn class="btn btn-primary" data-id="1">Authorize Contract</btn>
+        </section>
+        <hr>
+        <section class="action-area">
+            <h1>Airline Registration</h1>
+            <h3>Step 1: Please Choose a Name</h3>
+            <select name="AirlineName" id="airline-name-registration">
+                <option class="airlineRegistrationOption" value="British Airways">British Airways</option>
+                <option class="airlineRegistrationOption" value="Air France">Air France</option>
+                <option class="airlineRegistrationOption" value="Alitalia">Alitalia</option>
+                <option class="airlineRegistrationOption" value="Royal Air Maroc">Royal Air Maroc</option>
+                <option class="airlineRegistrationOption" value="TAP">TAP</option>
             </select>
-            <btn class="btn btn-primary" onclick="App.buyInsurance" id="buy-insurance">Buy</btn>
-        </div>
-        <div class="row top-20">
-            <label class="form">Flight</label> <input type="text" id="flight-number"> <btn class="btn btn-primary" id="submit-oracle">Submit to Oracles</btn>
-        </div>
+            <label for="">Airline Address</label>
+            <input type="text" id="airlineAddress" value="">
+            <h3 style="margin-top: 20px">Step 2: Fund your account</h3>
+            <btn class="btn btn-primary" data-id="3">Fund Account</btn>
+            <h3 style="margin-top: 20px">Step 3: Register</h3>
+            <btn class="btn btn-primary" data-id="2">Register As an Airline</btn>
+        </section>
+        <hr>
+        <section class="action-area">
+            <h1>Flight Registration</h1>
+            <div class="row top-20">
+                <h3>Register A Flight</h3>
+                <label class="form" for="flight-number-to-register"></label> 
+                <input type="text" name="flight-number-to-register" placeholder="UA235" id="flight-number"> 
+                <btn class="btn btn-primary" data-id="10">Register Flight</btn>
+            </div>
+        </section>
+        <hr>
+        <section class="action-area">
+        <h1>Purchase Insurance</h1>
+            <div class="row top-20">
+                <label class="form">Buy insurance for a flight</label> 
+                <select id="flight-dropdown">
+                    <option value="UA487">UA487</option>
+                    <option value="BA198">BA198</option>
+                    <option value="AF6124">AF6124</option>
+                </select>
+                <btn class="btn btn-primary" id="buy-insurance" data-id="18">Buy</btn>
+            </div>
+        </section>
+        <hr>
+        <section class="action-area">
+            <h1>Check Flight Status and Claim Insurance</h1>
+            <div class="row top-20">
+                <select name="airline-names" id="airline-dropdown">
+                    <option value="British Airways">British Airways</option>
+                    <option value="Air France">Air France</option>
+                    <option value="Alitalia">Alitalia</option>
+                    <option value="Royal Air Maroc">Royal Air Maroc</option>
+                    <option value="TAP">TAP</option>
+                </select>
+                <label class="form">Flight</label> <input type="text" id="flight-number"> <btn class="btn btn-primary" data-id="19">Submit to Oracles</btn>
+            </div>
+        </section>
     </main>
 </body>
 <script src="./index.js"></script>

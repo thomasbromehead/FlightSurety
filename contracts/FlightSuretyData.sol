@@ -30,6 +30,7 @@ contract FlightSuretyData {
     mapping(address => uint) public fundPool;
     mapping(address => address[]) public voters;
     mapping(bytes32 => address[]) public policies;
+    mapping(address => uint256) private insureeBalances;
     Structs.Airline[] public airlinesArray;
     mapping(address => Structs.Flight[]) public flights;
 
@@ -50,7 +51,7 @@ contract FlightSuretyData {
                                 payable 
     {
         contractOwner = msg.sender;
-        registerAirline(firstAirlineAddress, true, msg.sender);
+        registerAirline("British Airways", firstAirlineAddress, true, msg.sender);
         if(msg.value > 0 ether){
             fundPool[firstAirlineAddress] = msg.value;
         }
@@ -310,6 +311,7 @@ contract FlightSuretyData {
     */   
     function registerAirline
                             (   
+                                bytes32 airlineName,
                                 address airline,
                                 bool registered,
                                 address caller
@@ -324,6 +326,7 @@ contract FlightSuretyData {
         require(caller != airline, "An airline cannot register itself");
         uint index = airlinesArray.length.add(1);
         Structs.Airline memory airlineStruct = Structs.Airline({
+            name: airlineName,
             isRegistered: registered,
             airlineAddress: airline,
             airlineIndex: index,
@@ -425,6 +428,7 @@ contract FlightSuretyData {
     {
         // bytes32 flightNumberAsBytes = Structs.toBytes32(flightNumber);
         address[] storage policy = policies[flightNumber];
+        insureeBalances[airline] = msg.value;
         policy.push(caller);
         return true;
     }
@@ -447,11 +451,20 @@ contract FlightSuretyData {
     */
     function creditInsurees
                                 (
+                                    bytes32 flightNumber
                                 )
                                 isAuthorizedContract()
                                 external
                                 view
     {
+        // Loop over insurees for this flight
+        // insureeBalances[holder] = 0;
+        // payable(address(holder)).transfer();
+        // 1)Get balance of the passenger previous to the transaction
+        // 2) Get gasUsed by the transaction and multiply it by the gas price, to get the amount of WEI consumed in the transaction
+        // 3) Get balance of the passenger after the transaction
+        // 4) Check that this is valid:
+        // previousBalance < gasUsedWEI + afterBalance
     }
     
 

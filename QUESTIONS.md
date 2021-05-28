@@ -18,3 +18,4 @@ I get warnings saying that it should be a `view` since the `requireIsOperational
 ```
 This function is `external` and the compiler asks me to specify `flightNumber` to be located in `calldata`
 9. upgradability, proxy wallets, meta-transactions, and counterfactual deployment
+10. registerOracle is called by the test addresses, I suppose the goal was to pretend third-partiy companies offering a service

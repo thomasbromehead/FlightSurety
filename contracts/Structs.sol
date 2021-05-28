@@ -16,6 +16,7 @@ library Structs {
   // }
 
   struct Airline {
+    bytes32 name;
     bool isRegistered;
     address airlineAddress;
     uint airlineIndex;

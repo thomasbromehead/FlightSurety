@@ -21,7 +21,6 @@ contract('Oracles', async (accounts) => {
 
 
   it('can register oracles', async () => {
-    
     // ARRANGE
     let fee = await config.flightSuretyApp.REGISTRATION_FEE.call();
 
@@ -34,7 +33,6 @@ contract('Oracles', async (accounts) => {
   });
 
   it('can request flight status', async () => {
-    
     // ARRANGE
     let flight = 'ND1309'; // Course number
     let timestamp = Math.floor(Date.now() / 1000);
@@ -48,27 +46,18 @@ contract('Oracles', async (accounts) => {
     // and submit a response. The contract will reject a submission if it was
     // not requested so while sub-optimal, it's a good test of that feature
     for(let a=1; a < TEST_ORACLES_COUNT; a++) {
-
       // Get oracle information
-      let oracleIndexes = await config.flightSuretyApp.getMyIndexes.call({ from: accounts[a]});
-      for(let idx=0;idx<3;idx++) {
-
+      let oracleIndexes = await config.flightSuretyApp.getMyIndexes.call({ from: accounts[a] });
+      for(let idx=0; idx<3; idx++) {
         try {
           // Submit a response...it will only be accepted if there is an Index match
           await config.flightSuretyApp.submitOracleResponse(oracleIndexes[idx], config.firstAirline, flight, timestamp, STATUS_CODE_ON_TIME, { from: accounts[a] });
-
         }
         catch(e) {
           // Enable this when debugging
            console.log('\nError', idx, oracleIndexes[idx].toNumber(), flight, timestamp);
         }
-
       }
     }
-
-
   });
-
-
- 
 });

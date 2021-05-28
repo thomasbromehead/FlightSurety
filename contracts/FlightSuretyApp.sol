@@ -26,6 +26,7 @@ contract FlightSuretyApp {
     uint8 private constant STATUS_CODE_LATE_TECHNICAL = 40;
     uint8 private constant STATUS_CODE_LATE_OTHER = 50;
     uint8 private constant MAX_INSURANCE_PRICE = 1;
+    uint8 private constant REGISTERED_AIRLINE_THRESHOLD = 4;
 
     // Account used to deploy contract
     address public contractOwner;          
@@ -158,9 +159,9 @@ contract FlightSuretyApp {
     * @dev Add an airline to the registration queue
     *
     */
-
     function registerAirline
                             (
+                                string calldata name,
                                 address airline,
                                 address caller  
                             )
@@ -172,12 +173,13 @@ contract FlightSuretyApp {
     {
         bool isSuccess;
         uint totalRegisteredAirlines = dataContract.numberOfRegisteredAirlines();
-        if(totalRegisteredAirlines >= 4){
+        bytes32 airlineName = Structs.toBytes32(name);
+        if(totalRegisteredAirlines >= REGISTERED_AIRLINE_THRESHOLD){
             // require multisig
             emit VotesNeeded(airline);
-            isSuccess = dataContract.registerAirline(airline, false, caller);
+            isSuccess = dataContract.registerAirline(airlineName, airline, false, caller);
         } else {
-            isSuccess = dataContract.registerAirline(airline, true, caller);
+            isSuccess = dataContract.registerAirline(airlineName, airline, true, caller);
         }
         return(isSuccess, 0);
     }
@@ -201,13 +203,14 @@ contract FlightSuretyApp {
     function buyInsurance(address airline, string calldata flightNumber) external payable
     // hasNotBoughtInsurance(flightNumber)
     {
-        require(msg.value <=  MAX_INSURANCE_PRICE && msg.value >= 0, "Insurance costs at most 1 ether");
+        require(msg.value > 0, "This function is expecting a payment");
+        require(msg.value <=  1 ether, "Insurance costs at most 1 ether");
         // Fund contract
-        (bool success, ) = address(dataContract).call.value(msg.value)("");
-        require(success, "Failed to buy insurance");
+        // (bool success, ) = address(dataContract).call.value(msg.value)("");
+        // require(success, "Failed to buy insurance");
         bytes32 flightNumberAsBytes = Structs.toBytes32(flightNumber);
         // Apply logic
-        bool success2 = dataContract.buyInsurance(airline, flightNumberAsBytes, msg.sender);
+        bool success2 = dataContract.buyInsurance.value(msg.value)(airline, flightNumberAsBytes, msg.sender);
         require(success2, "Failed to register insuree");
         emit InsurancePurchased(flightNumberAsBytes, msg.sender);
     }
@@ -260,6 +263,12 @@ contract FlightSuretyApp {
     {
     }
 
+    event Toto(string name);
+
+    function toto() external {
+        emit Toto("toto was fired");
+    }
+
     // Generate a request for oracles to fetch flight information
     function fetchFlightStatus
                         (
@@ -270,6 +279,16 @@ contract FlightSuretyApp {
                         requireIsOperational()
                         external
     {
+        bytes32[] memory registeredFlights = dataContract.getRegisteredFlights(airline);
+        require(registeredFlights.length > 0, "There are no registered flights available");
+        bool flightIsRegistered;
+        bytes32 flightNumberAsBytes = Structs.toBytes32(flight);
+        for(uint i = 0; i < registeredFlights.length; i++){
+            if(registeredFlights[i] == flightNumberAsBytes){
+                flightIsRegistered = true;
+            }
+        }
+        assert(flightIsRegistered);
         uint8 index = getRandomIndex(msg.sender);
 
         // Generate a unique key for storing the request
@@ -293,14 +312,17 @@ contract FlightSuretyApp {
     // Number of oracles that must respond for valid status
     uint256 private constant MIN_RESPONSES = 3;
 
+    // Track all registered oracles
+    mapping(address => Oracle) private oracles;
+
+    // Track all oracle responses
+    // Key = hash(index, flight, timestamp)
+    mapping(bytes32 => ResponseInfo) private oracleResponses;
 
     struct Oracle {
         bool isRegistered;
         uint8[3] indexes;        
     }
-
-    // Track all registered oracles
-    mapping(address => Oracle) private oracles;
 
     // Model for responses from oracles
     struct ResponseInfo {
@@ -311,20 +333,15 @@ contract FlightSuretyApp {
                                                         // the response that majority of the oracles
     }
 
-    // Track all oracle responses
-    // Key = hash(index, flight, timestamp)
-    mapping(bytes32 => ResponseInfo) private oracleResponses;
-
     // Event fired each time an oracle submits a response
     event FlightStatusInfo(address airline, string flight, uint256 timestamp, uint8 status);
 
     event OracleReport(address airline, string flight, uint256 timestamp, uint8 status);
-
     // Event fired when flight status request is submitted
     // Oracles track this and if they have a matching index
     // they fetch data and submit a response
     event OracleRequest(uint8 index, address airline, string flight, uint256 timestamp);
-
+    event OracleRegistered();
 
     // Register an oracle with the contract
     function registerOracle
@@ -342,6 +359,7 @@ contract FlightSuretyApp {
                                         isRegistered: true,
                                         indexes: indexes
                                     });
+        emit OracleRegistered();
     }
 
     function getMyIndexes
@@ -352,7 +370,6 @@ contract FlightSuretyApp {
                             returns(uint8[3] memory indices)
     {
         require(oracles[msg.sender].isRegistered, "Not registered as an oracle");
-
         return oracles[msg.sender].indexes;
     }
 
@@ -447,7 +464,6 @@ contract FlightSuretyApp {
         if (nonce > 250) {
             nonce = 0;  // Can only fetch blockhashes for last 256 blocks so we adapt
         }
-
         return random;
     }
 
