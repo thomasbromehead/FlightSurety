@@ -111,9 +111,13 @@ contract FlightSuretyData {
     /**
     * @dev Modifier that requires the calling account to be an authorized contract
     */
-    event ShowMe(bool);
     modifier isAuthorizedContract() {
         require(isContractAuthorized(msg.sender), "The calling contract has not been authorized to call in");
+        _;
+    }
+
+    modifier isAlreadyAuthorizedContract() {
+        require(!isContractAuthorized(msg.sender), "This contract has already been registered to call in");
         _;
     }
 
@@ -222,6 +226,7 @@ contract FlightSuretyData {
                             )
                             requireIsOperational()
                             requireContractOwner()
+                            isAlreadyAuthorizedContract()
                             external
                             payable
                             returns(bool)

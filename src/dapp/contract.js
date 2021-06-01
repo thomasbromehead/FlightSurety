@@ -37,7 +37,7 @@ export default class Contract {
        let self = this;
        self.flightSuretyApp.methods
             .isOperational()
-            .call({ from: self.owner}, callback);
+            .call({from: self.owner}, callback);
     }
 
     toto(callback){
@@ -47,23 +47,26 @@ export default class Contract {
         .call({from: self.owner}, callback)
     }
 
-    authorizeContract(address, caller){
+    async authorizeContract(address, caller){
         let self = this;
+        let registerContractTx;
         try {
-            self.flightSuretyData.methods
+            registerContractTx = await self.flightSuretyData.methods
             .registerContract(address)
-            .send({from: caller, value: web3.utils.toWei('1', 'ether')}).catch(err => alert(`This happenned ${err}`))
+            .send({from: caller, value: web3.utils.toWei('1', 'ether')}).catch(err => alert(`This happened ${err}`));
+            if(registerContractTx) alert(registerContractTx.events.ContractAuthorized.event);
         } catch (error) {
             alert(`This happened ${error}`);
         }
     }
 
-    isContractAuthorized(address, caller){
+    async isContractAuthorized(address, caller){
         let self = this;
+        let isAuthCall;
         try {
-            self.flightSuretyData.methods
-            .isContractAuthorized(address)
-            .send({from: caller}).catch(err => alert(`This happenned ${err}`))
+            isAuthCall = await self.flightSuretyData.methods
+            .isContractAuthorized(address).call({from: caller, gas: 6721975}).catch(err => alert(`This happened ${err}`));
+            alert(isAuthCall);
         } catch (error) {
             alert(`This happened ${error}`);
         }
@@ -94,7 +97,7 @@ export default class Contract {
         console.log("REGISTERING ORACLES");
         self.flightSuretyApp.methods
         .registerOracle()
-        .send({from: caller, value: web3.utils.toWei('1', 'ether')}, callback);
+        .send({from: caller, value: web3.utils.toWei('1', 'ether'), gas: 6721975}, callback);
     }
 
     fetchFlightStatus(airline, flight, callback) {

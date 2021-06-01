@@ -91,8 +91,8 @@ const App = {
                 break;
             case 2:
                 try {
-                    let tx =  await App.dataContract.isContractAuthorized(contractAddress, App.metamaskAccountID);
-                    console.log(tx);
+                    return await App.dataContract.isContractAuthorized(contractAddress, App.metamaskAccountID);
+                    // console.log(tx);
                 } catch (error) {
                     alert(error)
                 }
